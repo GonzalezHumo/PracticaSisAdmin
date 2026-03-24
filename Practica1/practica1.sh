@@ -1,11 +1,12 @@
 #!/bin/bash
 
-echo "diagnostico de sistema"
+echo "Hostname:"
+hostnamectl hostname
+
 echo ""
-echo "hostname : $(cat /etc/hostname)"
+echo "Direccion IP Actual:"
+ip addr show | grep "inet " | grep -v "127.0.0.1" | awk '{print $2}'
+
 echo ""
-echo "direccion IP:"
-ip -4 addr show | grep inet | grep -v 127.0.0.1
-echo ""
-echo "Espacio en Disco:"
-df -h / | grep -v Filesystem
+echo "Espacio En Disco:"
+df -h / | awk 'NR==2 {printf "Used: %s\tFree: %s\n", $3, $4}'
