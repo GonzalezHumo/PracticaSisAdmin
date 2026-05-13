@@ -1,0 +1,60 @@
+networks:
+  infra_red:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  db_data:
+  web_content:
+
+services:
+
+  web:
+    build: ./web
+    container_name: web_server
+    networks:
+      - infra_red
+    ports:
+      - "8080:80"
+    volumes:
+      - web_content:/usr/share/nginx/html
+    mem_limit: 512m
+    cpus: 0.5
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: db_server
+    networks:
+      - infra_red
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin123
+      POSTGRES_DB: practica10
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./postgres:/backups
+    restart: unless-stopped
+
+  ftp:
+    image: fauria/vsftpd
+    container_name: ftp_server
+    networks:
+      - infra_red
+    ports:
+      - "20:20"
+      - "21:21"
+      - "21100-21110:21100-21110"
+    environment:
+      - FTP_USER=ftpuser
+      - FTP_PASS=ftp123
+      - PASV_ADDRESS=127.0.0.1
+      - PASV_MIN_PORT=21100
+      - PASV_MAX_PORT=21110
+    volumes:
+      - web_content:/home/vsftpd/ftpuser
+    mem_limit: 256m
+    cpus: 0.25
+    restart: unless-stopped
