@@ -1,0 +1,71 @@
+services:
+
+  # 1. Balanceador de carga (único punto de entrada público)
+  nginx:
+    image: nginx:alpine
+    container_name: nginx_balanceador
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - red_publica
+    depends_on:
+      - webapp
+    restart: always
+
+  # 2. Servidor de aplicaciones (sin puertos expuestos al host)
+  webapp:
+    image: httpd:alpine
+    container_name: webapp_interno
+    networks:
+      - red_publica
+    restart: always
+
+  # 3. Base de datos PostgreSQL con persistencia
+  postgres:
+    image: postgres:15-alpine
+    container_name: postgres_db
+    env_file:
+      - .env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - datos_postgres:/var/lib/postgresql/data
+    networks:
+      - red_datos
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 4. Panel administrativo pgAdmin (solo accesible por túnel SSH)
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin_panel
+    env_file:
+      - .env
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
+    networks:
+      - red_datos
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+# Redes multicapa
+networks:
+  red_publica:
+    driver: bridge
+  red_datos:
+    driver: bridge
+
+# Volumen nombrado para persistencia
+volumes:
+  datos_postgres:
