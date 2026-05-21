@@ -1,0 +1,83 @@
+services:
+
+  # 1. Servidor de correo principal (Postfix + Dovecot + Rspamd + Fail2ban + OpenDKIM)
+  mailserver:
+    image: ghcr.io/docker-mailserver/docker-mailserver:latest
+    container_name: mailserver
+    hostname: mail.reprobados.com
+    env_file:
+      - .env
+    environment:
+      - ACCOUNT_PROVISIONER=FILE
+      - ENABLE_RSPAMD=0
+      - ENABLE_FAIL2BAN=1
+      - ENABLE_OPENDKIM=0
+      - ENABLE_OPENDMARC=0
+      - ENABLE_SPAMASSASSIN=0
+      - SSL_TYPE=snakeoil
+      - POSTMASTER_ADDRESS=admin@reprobados.com
+      - LOG_LEVEL=info
+      - POSTFIX_INET_PROTOCOLS=ipv4
+      - DOVECOT_INET_PROTOCOLS=ipv4
+      - DISABLE_PLAINTEXT_AUTH=0
+    ports:
+      - "25:25"
+      - "465:465"
+      - "587:587"
+      - "143:143"
+      - "993:993"
+      - "8080:80"
+    volumes:
+      - mail_data:/var/mail
+      - mail_state:/var/mail-state
+      - mail_logs:/var/log/mail
+      - ./config:/tmp/docker-mailserver
+    networks:
+      - red_correo
+    restart: always
+    stop_grace_period: 1m
+    cap_add:
+      - NET_ADMIN
+    healthcheck:
+      test: ["CMD", "ss", "-ltn", "|", "grep", ":25"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # 2. Webmail Roundcube
+  roundcube:
+    image: roundcube/roundcubemail:latest
+    container_name: roundcube_webmail
+
+    environment:
+      - ROUNDCUBEMAIL_DEFAULT_HOST=mailserver
+      - ROUNDCUBEMAIL_DEFAULT_PORT=143
+      - ROUNDCUBEMAIL_SMTP_SERVER=mailserver
+      - ROUNDCUBEMAIL_SMTP_PORT=587
+      - ROUNDCUBEMAIL_DB_TYPE=sqlite
+      - ROUNDCUBEMAIL_SKIN=elastic
+      - ROUNDCUBEMAIL_UPLOAD_MAX_FILESIZE=25M
+    volumes:
+      - roundcube_db:/var/roundcube/db
+      - roundcube_data:/var/roundcube/config
+      - ./roundcube-config.php:/var/www/html/config/custom.inc.php
+    depends_on:
+      - mailserver
+    restart: always
+
+networks:
+  red_correo:
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.enable_icc: "true"
+      com.docker.network.bridge.enable_ip_masquerade: "true"
+    ipam:
+      config:
+        - subnet: 172.25.0.0/24
+
+volumes:
+  mail_data:
+  mail_state:
+  mail_logs:
+  roundcube_db:
+  roundcube_data:
